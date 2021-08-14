@@ -1,0 +1,3 @@
+14/08/2021 22:03:07        Error        Mqtt connection error: OSError 
+14/08/2021 22:03:08        Error        Mqtt connection error: OSError 
+14/08/2021 22:09:27        Event        Successfully connected to MQTT server 

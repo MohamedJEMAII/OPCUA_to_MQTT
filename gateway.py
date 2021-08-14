@@ -113,8 +113,8 @@ try:
         # i=0
     # Stacked myvar access
     # print("myvar is: ", root.get_children()[0].get_children()[1].get_variables()[0].get_value())
-        if i==10:
-            break
+#        if i==10:
+#            break
 
 finally:
     client.disconnect()

@@ -5,4 +5,5 @@
 - trim log files to reduce size if necessary
 - send notification for certain errors or event types
 - get time from time server if necessary
+- send error over mqtt to save space on edge device
 """

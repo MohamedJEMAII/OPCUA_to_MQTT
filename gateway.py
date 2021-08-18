@@ -3,8 +3,9 @@ import sys
 sys.path.insert(0, "..")
 import time
 import concurrent.futures
-from opcua import Client as opcua
-import paho.mqtt.client as mqtt
+from opcua import Client as Opcua_client
+import opcua.ua
+import paho.mqtt.client as Mqtt_client
 import json
 from datetime import datetime
 
@@ -38,7 +39,10 @@ def log(type,message, print_error = False):
     log_file.close()
 
 
-mqtt_client = mqtt.Client(client_id="opc_to_mqtt", clean_session=True)
+log("Start", "Starting application",print_error=True)
+
+
+mqtt_client = Mqtt_client.Client(client_id="opc_to_mqtt", clean_session=True)
 mqtt_client.will_set("opcua/client/status", "Connection Error", qos=2, retain=True)
 mqtt_client.on_connect = on_connect
 
@@ -64,7 +68,7 @@ while not mqtt_connected:
         log("Error", "MQTT connection error, retrying after 5s",print_error=True)
         mqtt_connected = False
 
-opcua_client = opcua("opc.tcp://DESKTOP-OP68EIL:53530/OPCUA/SimulationServer")
+opcua_client = Opcua_client("opc.tcp://DESKTOP-OP68EIL:53530/OPCUA/SimulationServer")
 # client = Client("opc.tcp://admin@localhost:4840/freeopcua/server/") #connect using a user
 opcua_connected = False
 
@@ -93,7 +97,7 @@ while True:
         data = {}
         # get a specific node knowing its node id
         # var = client.get_node(ua.NodeId(1007, 2))
-        var = opcua_client.get_node("ns=3;i=1003")
+        var = opcua_client.get_node("ns=3;i=1002")
         # print(var)
         y = var.get_data_value()  # get value of node as a DataValue object
         x = var.get_value()  # get value of node as a python builtin
@@ -101,11 +105,20 @@ while True:
         data["timestamp"] = str(str(int(time.mktime(y.SourceTimestamp.timetuple()))))
         data["value"] = y.Value.Value
         jdata = json.dumps(data)
+    except opcua.ua.uaerrors._auto.BadNodeIdUnknown:
+        log("Error", "The node id refers to a node that does not exist in the server address space, Please correct", print_error=True)
+        break
+    except opcua.ua.uaerrors._auto.BadAttributeIdInvalid:
+        log("Error", "The namespace does not exist in the server, Please correct", print_error=True)
+        break
     except:
         log("Error", "OPCUA connection error, trying to reconnect",print_error=True)
         opcua_connected = False
         continue
-
+    # var = opcua_client.get_node("ns=3;i=1050")
+    # y = var.get_data_value()  # get value of node as a DataValue object
+    # x = var.get_value()  # get value of node as a python builtin
+    #print(var)
     # var.set_value(ua.Variant([23], ua.VariantType.Int64)) #set node value using explicit data type
     # var.set_value(3.9) # set node value using implicit data type
     # print(x, end="\r")
@@ -143,3 +156,4 @@ while True:
 
 if opcua_connected:
     opcua_client.disconnect()
+log("Stop ", "Exiting application",print_error=True)

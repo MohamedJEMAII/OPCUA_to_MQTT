@@ -9,6 +9,8 @@ import paho.mqtt.client as Mqtt_client
 import json
 from datetime import datetime
 
+opcua_nodes = {'Counter':"ns=3;i=1001", 'Random':"ns=3;i=1002", 'Sawtooth':"ns=3;i=1003", 'Sinusoid':"ns=3;i=1004", 'Square':"ns=3;i=1005", 'Triangle':"ns=3;i=1006"}
+
 
 ################################MQTT prepare#####################################################
 def on_connect(client, userdata, flag, rc):
@@ -68,13 +70,15 @@ while not mqtt_connected:
         log("Error", "MQTT connection error, retrying after 5s",print_error=True)
         mqtt_connected = False
 
-opcua_client = Opcua_client("opc.tcp://DESKTOP-OP68EIL:53530/OPCUA/SimulationServer")
+opcua_client = Opcua_client("opc.tcp://localhost:53530/OPCUA/SimulationServer")
 # client = Client("opc.tcp://admin@localhost:4840/freeopcua/server/") #connect using a user
 opcua_connected = False
 
 value = None
 i = 0
 j = 0
+old_data = {}
+publish = False
 while True:
 
 
@@ -89,21 +93,25 @@ while True:
             continue
         log("Event", "OPCUA successfully connected",print_error=True)
     try:
-        # Client has a few methods to get proxy to UA nodes that should always be in address space such as Root or Objects
-        #root = opcua_client.get_root_node()
-        #print("Objects node is: ", root)
-        # Node objects have methods to read and write node attributes as well as browse or populate address space
-        #print("Children of root are: ", root.get_children())
+
         data = {}
-        # get a specific node knowing its node id
-        # var = client.get_node(ua.NodeId(1007, 2))
-        var = opcua_client.get_node("ns=3;i=1002")
-        # print(var)
-        y = var.get_data_value()  # get value of node as a DataValue object
-        x = var.get_value()  # get value of node as a python builtin
-        data["name"] = "Variable 01"
-        data["timestamp"] = str(str(int(time.mktime(y.SourceTimestamp.timetuple()))))
-        data["value"] = y.Value.Value
+
+        for variable_name in opcua_nodes.keys():
+            #print(f'processing variable name : {variable_name}')
+            variable = opcua_client.get_node(opcua_nodes[variable_name])
+            variable_opc_dict = variable.get_data_value()  # get value of node as a DataValue object
+
+            variable_dict = {"timestamp": str(str(int(time.mktime(variable_opc_dict.SourceTimestamp.timetuple())))),"value": variable_opc_dict.Value.Value}
+            #print(f'variable dictionary to be added is :{variable_dict}')
+            if old_data == None or old_data == {} or variable_name not in old_data.keys():
+                data[variable_name] = variable_dict
+                publish = True
+                #print(f'added, new dictionnary: {data}')
+            elif (variable_dict['value'] != old_data[variable_name]['value']):
+                data[variable_name] = variable_dict
+                publish = True
+                #print(f'added, new dictionnary: {data}')
+
         jdata = json.dumps(data)
     except opcua.ua.uaerrors._auto.BadNodeIdUnknown:
         log("Error", "The node id refers to a node that does not exist in the server address space, Please correct", print_error=True)
@@ -115,15 +123,10 @@ while True:
         log("Error", "OPCUA connection error, trying to reconnect",print_error=True)
         opcua_connected = False
         continue
-    # var = opcua_client.get_node("ns=3;i=1050")
-    # y = var.get_data_value()  # get value of node as a DataValue object
-    # x = var.get_value()  # get value of node as a python builtin
-    #print(var)
-    # var.set_value(ua.Variant([23], ua.VariantType.Int64)) #set node value using explicit data type
-    # var.set_value(3.9) # set node value using implicit data type
-    # print(x, end="\r")
+
     while not mqtt_client.is_connected():
         try:
+
             j +=1
             mqtt_client.reconnect()
             #print(f"Trying to reconnect for {j} time(s)")
@@ -132,11 +135,11 @@ while True:
             log("Error","Mqtt connection lost, trying to reconnect after 5s",print_error=True)
             time.sleep(5)
 
-    if value != x:
-        #print(f' Value is : {y.Value.Value}  Time Stamp : {y.SourceTimestamp}')
+    if publish:
 
         mqtt_client.publish("opcua/client/message", payload=jdata, qos=2, retain=False)
-        value = x
+        publish = False
+        old_data = data
     # Now getting a variable node using its browse path
     # myvar = root.get_child(["0:Objects", "2:MyObject", "2:MyVariable"])
     # obj = root.get_child(["0:Objects", "2:MyObject"])

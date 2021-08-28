@@ -1,0 +1,2 @@
+opcua_nodes = {'variable1':"ns=3;i=1001", 'variable2':"ns=3;i=1002", 'variable3':"ns=3;i=1003", 'variable4':"ns=3;i=1004", 'variable5':"ns=3;i=1005", 'variable6':"ns=3;i=1006"}
+print(list(opcua_nodes.values()))

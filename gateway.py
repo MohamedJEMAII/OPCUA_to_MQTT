@@ -12,11 +12,11 @@ from datetime import datetime
 
 ################################MQTT prepare#####################################################
 def on_connect(client, userdata, flag, rc):
-    #print("Connected with result code " + str(rc))
+    # print("Connected with result code " + str(rc))
     mqtt_client.publish("opcua/client/status", "Connected", qos=2, retain=True)
     global j
-    j=0
-    log("Event", "Successfully connected to MQTT server",print_error=True)
+    j = 0
+    log("Event", "Successfully connected to MQTT server", print_error=True)
 
 
 def disconnect():
@@ -25,8 +25,10 @@ def disconnect():
     mqtt_client.disconnect()
     log("Event", "Disconnected from MQTT server")
 
-def log(type,message, print_error = False):
-    #Get and format current datetime
+
+# Log function
+def log(type, message, print_error=False):
+    # Get and format current datetime
     time = datetime.now()
     time_string = time.strftime("%d/%m/%Y %H:%M:%S")
     # Open log file with access mode 'a'
@@ -39,8 +41,7 @@ def log(type,message, print_error = False):
     log_file.close()
 
 
-log("Start", "Starting application",print_error=True)
-
+log("Start", "Starting application", print_error=True)
 
 mqtt_client = Mqtt_client.Client(client_id="opc_to_mqtt", clean_session=True)
 mqtt_client.will_set("opcua/client/status", "Connection Error", qos=2, retain=True)
@@ -54,7 +55,7 @@ mqtt_client.on_connect = on_connect
 # client.subscribe(OPCUA/client/message/)
 
 
-#############################################################
+# Initiate connection to MQTT server
 mqtt_connected = False
 
 while not mqtt_connected:
@@ -65,9 +66,10 @@ while not mqtt_connected:
         mqtt_connected = True
 
     except:
-        log("Error", "MQTT connection error, retrying after 5s",print_error=True)
+        log("Error", "MQTT connection error, retrying after 5s", print_error=True)
         mqtt_connected = False
 
+# Setting OpcUA server parameters
 opcua_client = Opcua_client("opc.tcp://DESKTOP-OP68EIL:53530/OPCUA/SimulationServer")
 # client = Client("opc.tcp://admin@localhost:4840/freeopcua/server/") #connect using a user
 opcua_connected = False
@@ -75,30 +77,26 @@ opcua_connected = False
 value = None
 i = 0
 j = 0
+
+# Starting main loop
 while True:
-
-
+    # Check OpcUA connection and connect if required
     while not opcua_connected:
         try:
             opcua_client.connect()
             opcua_connected = True
         except:
-            log("Error", "OPCUA connection error, retrying after 5s",print_error=True)
+            log("Error", "OPCUA connection error, retrying after 5s", print_error=True)
             opcua_connected = False
             time.sleep(5)
             continue
-        log("Event", "OPCUA successfully connected",print_error=True)
+        log("Event", "OPCUA successfully connected", print_error=True)
+
+    # getting values from OpcUA server
     try:
-        # Client has a few methods to get proxy to UA nodes that should always be in address space such as Root or Objects
-        #root = opcua_client.get_root_node()
-        #print("Objects node is: ", root)
-        # Node objects have methods to read and write node attributes as well as browse or populate address space
-        #print("Children of root are: ", root.get_children())
         data = {}
         # get a specific node knowing its node id
-        # var = client.get_node(ua.NodeId(1007, 2))
-        var = opcua_client.get_node("ns=3;i=1002")
-        # print(var)
+        var = opcua_client.get_node(opcua.ua.NodeId(1001, 3))
         y = var.get_data_value()  # get value of node as a DataValue object
         x = var.get_value()  # get value of node as a python builtin
         data["name"] = "Variable 01"
@@ -106,35 +104,33 @@ while True:
         data["value"] = y.Value.Value
         jdata = json.dumps(data)
     except opcua.ua.uaerrors._auto.BadNodeIdUnknown:
-        log("Error", "The node id refers to a node that does not exist in the server address space, Please correct", print_error=True)
+        log("Error", "The node id refers to a node that does not exist in the server address space, Please correct",
+            print_error=True)
         break
     except opcua.ua.uaerrors._auto.BadAttributeIdInvalid:
         log("Error", "The namespace does not exist in the server, Please correct", print_error=True)
         break
     except:
-        log("Error", "OPCUA connection error, trying to reconnect",print_error=True)
+        log("Error", "OPCUA connection error, trying to reconnect", print_error=True)
         opcua_connected = False
         continue
-    # var = opcua_client.get_node("ns=3;i=1050")
-    # y = var.get_data_value()  # get value of node as a DataValue object
-    # x = var.get_value()  # get value of node as a python builtin
-    #print(var)
+
     # var.set_value(ua.Variant([23], ua.VariantType.Int64)) #set node value using explicit data type
     # var.set_value(3.9) # set node value using implicit data type
     # print(x, end="\r")
+
+    # Check Mqtt connection status and connect if necessary
     while not mqtt_client.is_connected():
         try:
-            j +=1
+            j += 1
             mqtt_client.reconnect()
-            #print(f"Trying to reconnect for {j} time(s)")
+            # print(f"Trying to reconnect for {j} time(s)")
         except:
-            #print("Mqtt connection error")
-            log("Error","Mqtt connection lost, trying to reconnect after 5s",print_error=True)
+            # print("Mqtt connection error")
+            log("Error", "Mqtt connection lost, trying to reconnect after 5s", print_error=True)
             time.sleep(5)
-
+    # Publish value to Mqtt if changed
     if value != x:
-        #print(f' Value is : {y.Value.Value}  Time Stamp : {y.SourceTimestamp}')
-
         mqtt_client.publish("opcua/client/message", payload=jdata, qos=2, retain=False)
         value = x
     # Now getting a variable node using its browse path
@@ -142,7 +138,7 @@ while True:
     # obj = root.get_child(["0:Objects", "2:MyObject"])
     # print("myvar is: ", myvar)
     # print("myobj is: ", obj)
-    cycle = .5
+    cycle = .1
     time.sleep(cycle)
     i += 1
     # if i==5:
@@ -156,4 +152,4 @@ while True:
 
 if opcua_connected:
     opcua_client.disconnect()
-log("Stop ", "Exiting application",print_error=True)
+log("Stop ", "Exiting application", print_error=True)

@@ -145,7 +145,7 @@ while True:
     # obj = root.get_child(["0:Objects", "2:MyObject"])
     # print("myvar is: ", myvar)
     # print("myobj is: ", obj)
-    cycle = .5
+    cycle = .8
     time.sleep(cycle)
     i += 1
     # if i==5:
